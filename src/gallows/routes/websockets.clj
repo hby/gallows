@@ -8,15 +8,16 @@
 (defonce channels (atom #{}))
 
 (defn connect! [channel]
-  (log/info "channel open")
+  (log/info "channel open:" channel)
   (swap! channels conj channel))
 
 (defn disconnect! [channel status]
-  (log/info "channel closed:" status)
+  (log/info "channel closed:" status channel)
   (swap! channels #(remove #{channel} %)))
 
 (defn notify-clients [msg]
   (doseq [channel @channels]
+    (log/info "notify-clients:" msg)
     (send! channel msg)))
 
 (defn ws-handler [request]
