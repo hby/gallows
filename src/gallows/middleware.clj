@@ -48,7 +48,7 @@
 
 (defn wrap-base [handler]
   (-> ((:middleware defaults) handler)
-      wrap-formats
+      ;wrap-formats
       wrap-webjars
       (wrap-defaults
         (-> site-defaults

@@ -1,6 +1,6 @@
 (defproject gallows "0.1.0-SNAPSHOT"
 
-  :description "FIXME: write description"
+  :description "Gallows: A Distributed Hangman Game"
   :url "http://example.com/FIXME"
 
   :dependencies [[org.clojure/clojure "1.7.0"]

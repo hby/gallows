@@ -2,6 +2,7 @@
   (:require [compojure.core :refer [defroutes routes wrap-routes]]
             [gallows.layout :refer [error-page]]
             [gallows.routes.home :refer [home-routes]]
+            [gallows.routes.websockets :refer [websocket-routes]]
             [gallows.middleware :as middleware]
             [clojure.tools.logging :as log]
             [compojure.route :as route]
@@ -32,6 +33,7 @@
 
 (def app-routes
   (routes
+    websocket-routes
     (wrap-routes #'home-routes middleware/wrap-csrf)
     (route/not-found
       (:body
