@@ -6,7 +6,12 @@
             [clojure.tools.logging :as log])
   (:import (java.io ByteArrayInputStream ByteArrayOutputStream)))
 
-(defonce channels (atom #{}))
+;; channel -> {:name _}
+(defonce channels (atom {}))
+
+(defn channel-data
+  [channel]
+  (@channels channel))
 
 (defn transit-read
   "return Cloure data given transit data"
@@ -24,7 +29,7 @@
         _ (t/write writer msg)]
     (.toString out)))
 
-(defn send-ws-message
+(defn notify-clients
   "msg is encoded as transit data and sent to channels
    channels - web socket channels
    msg     - Clojure data to send"
@@ -37,7 +42,7 @@
 (defn notify-all-clients [msg]
   (do
     (log/info "notifying all clients:" msg)
-    (apply send-ws-message msg @channels)))
+    (apply notify-clients msg (keys @channels))))
 
 (defn ->message
   "convenince web socket message creator"
@@ -49,16 +54,21 @@
 ;;; ws messages ;;;
 
 ;;
-;; :new-message
+;; :update-name
 ;;
-(defn new-message
-  [payload]
-  (notify-all-clients (->message :new-message payload)))
+(defn update-name
+  [channel {:keys [name]}]
+  (do
+    (log/info "updating channel:" channel "name to:" name)
+    (swap! channels assoc-in [channel :name] name)
+    (notify-all-clients (->message :set-players {:players (mapv :name (vals @channels))}))))
+
 
 ;;
-;; :new-player
+;; :guess-letter
 ;;
-(defn new-player [{:keys [player]}]
+(defn guess-letter [{:keys [letter]}]
+  (log/info "guessed: " letter)
   )
 
 
@@ -67,27 +77,32 @@
 
 (defn handle-ws-message
   "pass payload to function determined by (msg :type)"
-  [{:keys [type payload] :as msg}]
+  [channel {:keys [type payload] :as msg}]
   (do
-    (log/info "handling ws message:" msg)
+    (log/info "handling ws message:" msg "channel:" channel)
     (case type
-      :new-message (new-message payload)
-      :new-player (new-player payload)
+      :update-name (update-name channel payload)
+      :guess-letter (guess-letter payload)
       )))
 
 (defn connect! [channel]
   (log/info "channel open:" channel)
-  (swap! channels conj channel))
+  (swap! channels assoc channel {:name "Anonymous"})
+  (notify-clients (->message :set-message {:message "Welcome! Pick a name"}) channel)
+  (notify-all-clients (->message :set-players {:players (mapv :name (vals @channels))})))
 
 (defn disconnect! [channel status]
-  (log/info "channel closed:" status channel)
-  (swap! channels #(remove #{channel} %)))
+  (log/info "channel disconnected:" channel "status:" status)
+  (swap! channels dissoc channel)
+  (notify-all-clients (->message :set-players {:players (mapv :name (vals @channels))})))
 
 (defn ws-handler [request]
   (with-channel request channel
                 (connect! channel)
                 (on-close channel (partial disconnect! channel))
-                (on-receive channel #(handle-ws-message (transit-read %)))))
+                (on-receive channel #(do
+                                      (log/info "channel:" channel)
+                                      (handle-ws-message channel (transit-read %))))))
 
 (defroutes websocket-routes
            (GET "/ws" request (ws-handler request)))

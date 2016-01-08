@@ -11,63 +11,95 @@
   ;(:import goog.History)
   )
 
-(defonce messages (atom []))
+(defonce players (atom []))
 (defonce player (atom ""))
 (defonce game (atom {:role nil  ; :guesser or :worder
-                     :other nil ; "other player name"
+                     :other nil ; other player name
                      }))
-(defonce players (atom []))
+(defonce message (atom ""))
+
 
 (defn send-ws-message
   [type payload]
-  (ws/send-transit-msg!
-    {:type type
-     :payload payload}))
+  (reset! message "")
+  (ws/send-transit-msg! {:type type
+                         :payload payload}))
 
-(defn message-list []
+(defn update-name-ws
+  [n]
+  (send-ws-message :update-name {:name n}))
+
+(defn player-list []
   [:ul
-   (for [[i message] (map-indexed vector @messages)]
+   (for [[i player] (map-indexed vector @players)]
      ^{:key i}
-     [:li message])])
+     [:li player])])
 
-(defn message-input []
+(defn message-view []
+  [:span
+   @message])
+
+(defn new-player-field []
   (let [value (atom nil)]
     (fn []
       [:input.form-control
        {:type :text
-        :placeholder "type in the name to want to use and press enter"
+        :placeholder "who do you want to be?"
         :value @value
         :on-change #(reset! value (-> % .-target .-value))
         :on-key-down #(when (= (.-keyCode %) 13)
-                       (send-ws-message :new-message
-                                        {:message @value})
+                       (update-name-ws @value)
+                       (reset! value nil))}])))
+
+(defn letter-input []
+  (let [value (atom nil)]
+    (fn []
+      [:input.form-control
+       {:type :text
+        :placeholder "guess letters"
+        :value @value
+        :on-change #(reset! value (-> % .-target .-value))
+        :on-key-down #(when (= (.-keyCode %) 13)
+                       (send-ws-message :guess-letter
+                                        {:letter @value})
                        (reset! value nil))}])))
 
 (defn home-page []
   [:div.container
    [:div.row
-    [:div.col-md-12
-     [:h2 "Who are you?"]]]
-   [:div.row
-    [:div.col-sm-6
-     [message-list]]]
-   [:div.row
-    [:div.col-sm-6
-     [message-input]]]])
+
+    [:div.col-md-3
+     [message-view]
+     [:h4 "Enter The Gallows"]
+     [:div
+      [new-player-field]]
+     [:div
+      [player-list]]]
+
+    [:div.col-md-9
+     [letter-input]]]
+   ]
+  )
 
 
 ;;; ws messages ;;;
 
 ;;
-;; :new-message
+;; :set-players
 ;;
-(defn update-messages! [{:keys [message]}]
-  (swap! messages #(vec (drop (- (count @messages) 10) (conj % message)))))
+(defn set-players! [{new-players :players}]
+  (reset! players (sort new-players)))
 
 ;;
-;; :new-player
+;; :set-message
 ;;
-(defn update-player-list! [{:keys [player]}]
+(defn set-message! [{new-message :message}]
+  (reset! message new-message))
+
+;;
+;; :guess-letter
+;;
+(defn guess-letter [{:keys [letter]}]
   )
 
 ;;; mount components and set up ws connection ;;;
@@ -77,7 +109,10 @@
   (do
     (println "got ws message type:" type "payload:" payload)
     (case type
-      :new-message (update-messages! payload))))
+      :set-players (set-players! payload)
+      :set-message (set-message! payload)
+      :guess-letter (guess-letter payload)
+      )))
 
 (defn mount-components []
   (reagent/render-component [#'home-page] (.getElementById js/document "app")))
