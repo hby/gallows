@@ -9,5 +9,7 @@ pom.xml
 profiles.clj
 /.env
 *.log
+*.log.*
 /.idea
 *.iml
+.nrepl-port

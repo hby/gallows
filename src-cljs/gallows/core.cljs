@@ -11,13 +11,16 @@
   ;(:import goog.History)
   )
 
-(defonce players (atom []))
-(defonce player (atom ""))
-(defonce word (atom ""))
-(defonce game (atom {:role nil  ; :guesser or :worder
-                     :other nil ; other player name
-                     }))
 (defonce message (atom ""))
+
+(defonce player (atom ""))
+(defonce players (atom []))
+
+(defonce word (atom ""))
+
+;; { :role nil    ; :guesser or :worder
+;;   :other nil } ; other player name
+(defonce game (atom nil))
 
 
 (defn send-ws-message
@@ -95,6 +98,11 @@
                                         {:letter @value})
                        (reset! value nil))}])))
 
+(defn game-view []
+  (if @game
+    [letter-input]
+    [:span "Pick a name to play their word"]))
+
 (defn home-page []
   [:div.container
    [:div.row
@@ -113,7 +121,8 @@
       [player-list]]]
 
     [:div.col-md-9
-     [letter-input]]]
+     [:div.game
+      [game-view]]]]
    ]
   )
 

@@ -6,9 +6,22 @@
             [clojure.tools.logging :as log])
   (:import (java.io ByteArrayInputStream ByteArrayOutputStream)))
 
-;; channel -> {:name ""
+;; channel -> {:name  ""
+;;             :id    ""
 ;;             :words []}
 (defonce channels (atom {}))
+
+(defonce id (atom 0N))
+(defn next-id []
+  (str (swap! id inc)))
+
+(defn id->channel
+  "returns the channel key in the channels atom which
+  has the value of qid for the :id value of the map under that key."
+  [qid]
+  {:pre [(not (nil? qid))]}
+  (let [channels @channels]
+    (some (fn [[ck {:keys [id]}]] (if (= qid id) ck)) channels)))
 
 (defn channel-data
   [channel]
@@ -64,7 +77,6 @@
 
 
 ;;; ws messages ;;;
-
 ;;
 ;; :update-name
 ;;
@@ -107,7 +119,9 @@
 
 (defn connect! [channel]
   (log/info "channel open:" channel)
-  (swap! channels assoc channel {:name "Anonymous" :words []})
+  (swap! channels assoc channel {:name "Anonymous"
+                                 :id (next-id)
+                                 :words []})
   (notify-clients (->message :set-message {:message "Welcome!"}) channel)
   (update-all-client-players))
 
