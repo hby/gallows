@@ -41,7 +41,7 @@
 
 (defn player-name
   []
-  [:div [:strong "You are playing as "]
+  [:div [:strong "You are "]
    [:span {:style {:color "blue"}} @player]])
 
 (defn current-word
@@ -64,7 +64,7 @@
     (fn []
       [:input.form-control
        {:type :text
-        :placeholder "who do you want to be?"
+        :placeholder "who are you?"
         :value @value
         :on-change #(let [tv (-> % .-target .-value)]
                      (if (< (count tv) 11)
@@ -78,7 +78,7 @@
     (fn []
       [:input.form-control
        {:type :text
-        :placeholder "do you have a word?"
+        :placeholder "what's the word?"
         :value @value
         :on-change #(reset! value (-> % .-target .-value))
         :on-key-down #(when (= (.-keyCode %) 13)
@@ -107,7 +107,7 @@
   [:div.container
    [:div.row
 
-    [:div.col-md-3
+    [:div.col-sm-3
      [message-view]
      [:h4 "Enter The Gallows"]
      [:div
@@ -117,10 +117,10 @@
       [word-field]
       [current-word]]
      [:br]
-     [:div [:strong "Them: "] "(click to play their word)"
+     [:div [:strong "Them: "]
       [player-list]]]
 
-    [:div.col-md-9
+    [:div.col-sm-9
      [:div.game
       [game-view]]]]
    ]
