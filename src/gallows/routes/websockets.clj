@@ -6,7 +6,8 @@
             [clojure.tools.logging :as log])
   (:import (java.io ByteArrayInputStream ByteArrayOutputStream)))
 
-;; channel -> {:name _}
+;; channel -> {:name ""
+;;             :words []}
 (defonce channels (atom {}))
 
 (defn channel-data
@@ -50,6 +51,17 @@
   {:type type
    :payload payload})
 
+(defn update-all-client-players
+  []
+  (dorun
+    (let [channels @channels]
+      ;(log/info channels)
+      (for [channel (keys channels)
+            :let [players (mapv :name (vals (dissoc channels channel)))]]
+        (do
+          (log/info "updating players:" players "to" channel)
+          (notify-clients (->message :set-players {:players players}) channel))))))
+
 
 ;;; ws messages ;;;
 
@@ -61,8 +73,16 @@
   (do
     (log/info "updating channel:" channel "name to:" name)
     (swap! channels assoc-in [channel :name] name)
-    (notify-all-clients (->message :set-players {:players (mapv :name (vals @channels))}))))
+    (update-all-client-players)))
 
+;;
+;; :add-word
+;;
+(defn add-word
+  [channel {:keys [word]}]
+  (do
+    (swap! channels update-in [channel :words] conj word)
+    (update-all-client-players)))
 
 ;;
 ;; :guess-letter
@@ -70,7 +90,6 @@
 (defn guess-letter [{:keys [letter]}]
   (log/info "guessed: " letter)
   )
-
 
 
 ;;; Web Socket connect, disconnect, and raw handler
@@ -82,19 +101,20 @@
     (log/info "handling ws message:" msg "channel:" channel)
     (case type
       :update-name (update-name channel payload)
+      :add-word (add-word channel payload)
       :guess-letter (guess-letter payload)
       )))
 
 (defn connect! [channel]
   (log/info "channel open:" channel)
-  (swap! channels assoc channel {:name "Anonymous"})
-  (notify-clients (->message :set-message {:message "Welcome! Pick a name"}) channel)
-  (notify-all-clients (->message :set-players {:players (mapv :name (vals @channels))})))
+  (swap! channels assoc channel {:name "Anonymous" :words []})
+  (notify-clients (->message :set-message {:message "Welcome!"}) channel)
+  (update-all-client-players))
 
 (defn disconnect! [channel status]
   (log/info "channel disconnected:" channel "status:" status)
   (swap! channels dissoc channel)
-  (notify-all-clients (->message :set-players {:players (mapv :name (vals @channels))})))
+  (update-all-client-players))
 
 (defn ws-handler [request]
   (with-channel request channel

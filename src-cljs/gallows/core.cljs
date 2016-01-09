@@ -13,6 +13,7 @@
 
 (defonce players (atom []))
 (defonce player (atom ""))
+(defonce word (atom ""))
 (defonce game (atom {:role nil  ; :guesser or :worder
                      :other nil ; other player name
                      }))
@@ -27,7 +28,23 @@
 
 (defn update-name-ws
   [n]
+  (reset! player n)
   (send-ws-message :update-name {:name n}))
+
+(defn add-word-ws
+  [w]
+  (reset! word w)
+  (send-ws-message :add-word {:word w}))
+
+(defn player-name
+  []
+  [:div [:strong "You are playing as "]
+   [:span {:style {:color "blue"}} @player]])
+
+(defn current-word
+  []
+  [:div [:em "current word: "]
+   [:span @word]])
 
 (defn player-list []
   [:ul
@@ -39,16 +56,30 @@
   [:span
    @message])
 
-(defn new-player-field []
+(defn player-name-field []
   (let [value (atom nil)]
     (fn []
       [:input.form-control
        {:type :text
         :placeholder "who do you want to be?"
         :value @value
-        :on-change #(reset! value (-> % .-target .-value))
+        :on-change #(let [tv (-> % .-target .-value)]
+                     (if (< (count tv) 11)
+                       (reset! value tv)))
         :on-key-down #(when (= (.-keyCode %) 13)
                        (update-name-ws @value)
+                       (reset! value nil))}])))
+
+(defn word-field []
+  (let [value (atom nil)]
+    (fn []
+      [:input.form-control
+       {:type :text
+        :placeholder "do you have a word?"
+        :value @value
+        :on-change #(reset! value (-> % .-target .-value))
+        :on-key-down #(when (= (.-keyCode %) 13)
+                       (add-word-ws @value)
                        (reset! value nil))}])))
 
 (defn letter-input []
@@ -72,8 +103,13 @@
      [message-view]
      [:h4 "Enter The Gallows"]
      [:div
-      [new-player-field]]
-     [:div
+      [player-name-field]
+      [player-name]
+      [:br]
+      [word-field]
+      [current-word]]
+     [:br]
+     [:div [:strong "Them: "] "(click to play their word)"
       [player-list]]]
 
     [:div.col-md-9
