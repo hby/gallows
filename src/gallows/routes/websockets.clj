@@ -56,7 +56,7 @@
 
 (defn notify-all-clients [msg]
   (do
-    (log/info "notifying all clients:" msg)
+    ;(log/info "notifying all clients:" msg)
     (apply notify-clients msg (keys @channels))))
 
 (defn ->message
@@ -118,13 +118,20 @@
       :guess-letter (guess-letter payload)
       )))
 
+(defn periodically [ms f]
+  (future (while true (do (Thread/sleep ms) (f)))))
+(defonce pinger (atom nil))
+
 (defn connect! [channel]
   (log/info "channel open:" channel)
   (swap! channels assoc channel {:name "Anonymous"
                                  :id (next-id)
                                  :words []})
   (notify-clients (->message :set-message {:message "Welcome!"}) channel)
-  (update-all-client-players))
+  (update-all-client-players)
+  (swap! pinger #(if (nil? %)
+                  (periodically (* 1000 30) (fn [] (notify-all-clients (->message :ping {}))))
+                  %)))
 
 (defn disconnect! [channel status]
   (log/info "channel disconnected:" channel "status:" status)
@@ -141,8 +148,3 @@
 
 (defroutes websocket-routes
            (GET "/ws" request (ws-handler request)))
-
-(defn periodically [ms f]
-  (future (while true (do (Thread/sleep ms) (f)))))
-
-(periodically (* 1000 30) #(notify-all-clients (->message :ping {})))
