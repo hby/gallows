@@ -14,6 +14,11 @@
 (defonce message (atom ""))
 
 (defonce player (atom ""))
+
+;; [{ :name ""   ; player name
+;;    :id   ""   ; player id
+;;    :word "" } ; word to guess
+;;  ...]
 (defonce players (atom []))
 
 (defonce word (atom ""))
@@ -22,6 +27,10 @@
 ;;   :other nil } ; other player name
 (defonce game (atom nil))
 
+
+(defn start-game
+  [{:keys [name id word]}]
+  (println "game with" name ":" id ":" word))
 
 (defn send-ws-message
   [type payload]
@@ -42,18 +51,26 @@
 (defn player-name
   []
   [:div [:strong "You are "]
-   [:span {:style {:color "blue"}} @player]])
+   [:span {:style {:color "green"}} @player]])
 
 (defn current-word
   []
   [:div [:em "current word: "]
    [:span @word]])
 
+(defn player-li
+  [[i player]]
+  (if (player :word)
+    [:a
+     {:onClick #(start-game (@players i))}
+     (player :name)]
+    (player :name)))
+
 (defn player-list []
   [:ul
-   (for [[i player] (map-indexed vector @players)]
+   (for [[i _ :as ip] (map-indexed vector @players)]
      ^{:key i}
-     [:li player])])
+     [:li (player-li ip)])])
 
 (defn message-view []
   [:span
@@ -80,7 +97,9 @@
        {:type :text
         :placeholder "what's the word?"
         :value @value
-        :on-change #(reset! value (-> % .-target .-value))
+        :on-change #(let [tv (-> % .-target .-value)]
+                     (if (< (count tv) 16)
+                       (reset! value tv)))
         :on-key-down #(when (= (.-keyCode %) 13)
                        (add-word-ws @value)
                        (reset! value nil))}])))
@@ -133,7 +152,7 @@
 ;; :set-players
 ;;
 (defn set-players! [{new-players :players}]
-  (reset! players (sort new-players)))
+  (reset! players (vec (sort-by :name new-players))))
 
 ;;
 ;; :set-message

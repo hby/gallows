@@ -3,7 +3,8 @@
             [org.httpkit.server
              :refer [send! with-channel on-close on-receive]]
             [cognitect.transit :as t]
-            [clojure.tools.logging :as log])
+            [clojure.tools.logging :as log]
+            [clojure.set :as set])
   (:import (java.io ByteArrayInputStream ByteArrayOutputStream)))
 
 ;; channel -> {:name  ""
@@ -70,7 +71,7 @@
     (let [channels @channels]
       ;(log/info channels)
       (for [channel (keys channels)
-            :let [players (mapv :name (vals (dissoc channels channel)))]]
+            :let [players (mapv (fn [m] (set/rename-keys (update-in m [:words] #(last %)) {:words :word})) (vals (dissoc channels channel)))]]
         (do
           (log/info "updating players:" players "to" channel)
           (notify-clients (->message :set-players {:players players}) channel))))))
