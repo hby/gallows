@@ -55,13 +55,31 @@
                 :guessed #{}
                 :correct #{}}))
 
+(defn win?
+  "you win when all of hangman are in guessed
+   (expect for spaces in hangman)"
+  [game]
+  (let [hletters (remove #(= % " ") (set (game :hangman)))
+        guessed (game :guessed)]
+    (every? guessed hletters)))
+
+(defn lose?
+  "you lose on the 6th incorrect guess"
+  [game]
+  (>= ( -
+        (-> game :guessed count)
+        (-> game :correct count))
+      6))
+
 (defn guess-letter
   [l]
-  (swap! game update-in [:guessed] #(conj % l))
-  (swap! game update-in [:correct] #(if (some (set (@game :hangman)) l)
-                                     (conj % l)
-                                     %))
-  )
+  (letfn [(updater [g l]
+            (-> g
+                (update-in [:guessed] #(conj % l))
+                (update-in [:correct] #(if (some (set (g :hangman)) l)
+                                        (conj % l)
+                                        %))))]
+    (swap! game updater l)))
 
 (defn player-name
   []
@@ -111,7 +129,7 @@
     (fn []
       [:input.form-control
        {:type :text
-        :placeholder "what's the word?"
+        :placeholder "what's your word?"
         :value @value
         :on-change #(let [tv (-> % .-target .-value)]
                      (if (< (count tv) 16)
@@ -119,19 +137,6 @@
         :on-key-down #(when (= (.-keyCode %) 13)
                        (add-word-ws (s/lower-case @value))
                        (reset! value nil))}])))
-
-;(defn letter-input []
-;  (let [value (atom nil)]
-;    (fn []
-;      [:input.form-control
-;       {:type :text
-;        :placeholder "guess letters"
-;        :value @value
-;        :on-change #(reset! value (-> % .-target .-value))
-;        :on-key-down #(when (= (.-keyCode %) 13)
-;                       (send-ws-message :guess-letter
-;                                        {:letter @value})
-;                       (reset! value nil))}])))
 
 (defn nbsp
   ([] (nbsp 1))
@@ -160,10 +165,13 @@
      (map-indexed (fn [i l]
                     (if (some (game :guessed) l)
                       ^{:key i} [:span (apply str "_" (nbsp))]
-                      ^{:key i} [:span [:a
-                                        {:href "#"
-                                         :onClick #(guess-letter l)}
-                                        l]
+                      ^{:key i} [:span
+                                 (if (or (win? game) (lose? game))
+                                   [:span l]
+                                   [:a
+                                    {:href "#"
+                                     :onClick #(guess-letter l)}
+                                    l])
                                  [:span (nbsp)]]))
                   (-> game :letters)))])
 
@@ -178,7 +186,21 @@
         [:span {:style {:color "blue"}} (-> g :player :name)]]
        [hangman g]
        [game-letters g]
-       [guessed-letters g]])
+       [guessed-letters g]
+       (cond
+         (win? g) [:div.win
+                   {:style {:color "green"
+                            :font-size "20pt"
+                            :font-weight "bold"}}
+                   "You guessed it!"]
+         (lose? g) [:div.lose
+                    {:style {:font-size "20pt"
+                             :font-weight "bold"}}
+                    "You lost. The word was "
+                    [:br]
+                    [:span
+                     {:style {:color "red"}}
+                     (-> g :player :word)]])])
     [:span "Pick a name to play their word"]))
 
 (defn home-page []
