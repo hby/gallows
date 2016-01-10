@@ -1,6 +1,8 @@
 (ns gallows.core
   (:require [reagent.core :as reagent :refer [atom]]
             [gallows.websockets :as ws]
+            [clojure.string :as s]
+            [goog.string :as gstring]
     ;[reagent.session :as session]
     ;[secretary.core :as secretary :include-macros true]
     ;[goog.events :as events]
@@ -23,14 +25,10 @@
 
 (defonce word (atom ""))
 
-;; { :role nil    ; :guesser or :worder
-;;   :other nil } ; other player name
+;; If there is a game then this has game data,
+;; otherwise nil.
 (defonce game (atom nil))
 
-
-(defn start-game
-  [{:keys [name id word]}]
-  (println "game with" name ":" id ":" word))
 
 (defn send-ws-message
   [type payload]
@@ -48,6 +46,23 @@
   (reset! word w)
   (send-ws-message :add-word {:word w}))
 
+(defn start-game
+  "starting a game with a player"
+  [{:keys [name id word] :as player}]
+  (reset! game {:player player
+                :hangman (mapv identity (player :word))
+                :letters (mapv identity "abcdefghijklmnopqrstuvwxyz")
+                :guessed #{}
+                :correct #{}}))
+
+(defn guess-letter
+  [l]
+  (swap! game update-in [:guessed] #(conj % l))
+  (swap! game update-in [:correct] #(if (some (set (@game :hangman)) l)
+                                     (conj % l)
+                                     %))
+  )
+
 (defn player-name
   []
   [:div [:strong "You are "]
@@ -62,7 +77,7 @@
   [[i player]]
   (if (player :word)
     [:a
-     {:onClick #(start-game (@players i))}
+     {:onClick #(start-game player)}
      (player :name)]
     (player :name)))
 
@@ -99,27 +114,61 @@
         :value @value
         :on-change #(let [tv (-> % .-target .-value)]
                      (if (< (count tv) 16)
-                       (reset! value tv)))
+                       (reset! value (s/lower-case tv))))
         :on-key-down #(when (= (.-keyCode %) 13)
-                       (add-word-ws @value)
+                       (add-word-ws (s/lower-case @value))
                        (reset! value nil))}])))
 
-(defn letter-input []
-  (let [value (atom nil)]
-    (fn []
-      [:input.form-control
-       {:type :text
-        :placeholder "guess letters"
-        :value @value
-        :on-change #(reset! value (-> % .-target .-value))
-        :on-key-down #(when (= (.-keyCode %) 13)
-                       (send-ws-message :guess-letter
-                                        {:letter @value})
-                       (reset! value nil))}])))
+;(defn letter-input []
+;  (let [value (atom nil)]
+;    (fn []
+;      [:input.form-control
+;       {:type :text
+;        :placeholder "guess letters"
+;        :value @value
+;        :on-change #(reset! value (-> % .-target .-value))
+;        :on-key-down #(when (= (.-keyCode %) 13)
+;                       (send-ws-message :guess-letter
+;                                        {:letter @value})
+;                       (reset! value nil))}])))
+
+(defn nbsp
+  ([] (nbsp 1))
+  ([n] (repeat n (gstring/unescapeEntities "&nbsp;"))))
+
+(defn hangman [game]
+  [:div {:style {:font-size "30pt"}}
+   (doall
+     (map-indexed (fn [i l]
+                    (if (some (game :correct) l)
+                      ^{:key i} [:span (apply str l (nbsp))]
+                      ^{:key (+ i 100)} [:span (apply str "_" (nbsp))]))
+                  (-> game :hangman)))])
+
+(defn game-letters [game]
+  [:div {:style {:font-size 15}}
+   [:span "Guess: "]
+   (doall
+     (map-indexed (fn [i l]
+                    (if (some (game :guessed) l)
+                      ^{:key i} [:span (apply str "_" (nbsp))]
+                      ^{:key i} [:a
+                                 {:onClick #(guess-letter l)}
+                                 (apply str l (nbsp))]))
+                  (-> game :letters)))])
+
+(defn guessed-letters [game]
+  )
 
 (defn game-view []
   (if @game
-    [letter-input]
+    (let [g @game]
+      [:div.game
+       [:h4 "Playing a word from "
+        [:span {:style {:color "blue"}} (-> g :player :name)]]
+       [hangman g]
+       [game-letters g]
+       [guessed-letters g]])
     [:span "Pick a name to play their word"]))
 
 (defn home-page []
@@ -136,12 +185,11 @@
       [word-field]
       [current-word]]
      [:br]
-     [:div [:strong "Them: "]
+     [:div [:strong "They are "]
       [player-list]]]
 
     [:div.col-sm-9
-     [:div.game
-      [game-view]]]]
+     [game-view]]]
    ]
   )
 
@@ -163,7 +211,7 @@
 ;;
 ;; :guess-letter
 ;;
-(defn guess-letter [{:keys [letter]}]
+(defn guess-letter-msg [{:keys [letter]}]
   )
 
 ;;; mount components and set up ws connection ;;;
@@ -175,7 +223,7 @@
     (case type
       :set-players (set-players! payload)
       :set-message (set-message! payload)
-      :guess-letter (guess-letter payload)
+      :guess-letter (guess-letter-msg payload)
       )))
 
 (defn mount-components []
