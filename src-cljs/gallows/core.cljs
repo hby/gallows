@@ -77,7 +77,8 @@
   [[i player]]
   (if (player :word)
     [:a
-     {:onClick #(start-game player)}
+     {:href "#"
+      :onClick #(start-game player)}
      (player :name)]
     (player :name)))
 
@@ -159,9 +160,11 @@
      (map-indexed (fn [i l]
                     (if (some (game :guessed) l)
                       ^{:key i} [:span (apply str "_" (nbsp))]
-                      ^{:key i} [:a
-                                 {:onClick #(guess-letter l)}
-                                 (apply str l (nbsp))]))
+                      ^{:key i} [:span [:a
+                                        {:href "#"
+                                         :onClick #(guess-letter l)}
+                                        l]
+                                 [:span (nbsp)]]))
                   (-> game :letters)))])
 
 (defn guessed-letters [game]
