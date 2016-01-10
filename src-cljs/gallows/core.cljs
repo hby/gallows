@@ -214,6 +214,12 @@
 (defn guess-letter-msg [{:keys [letter]}]
   )
 
+;;
+;; :ping
+;;
+(defn ws-ping [_]
+  )
+
 ;;; mount components and set up ws connection ;;;
 
 (defn receive-ws-message
@@ -221,6 +227,7 @@
   (do
     (println "got ws message type:" type "payload:" payload)
     (case type
+      :ping (ws-ping payload)
       :set-players (set-players! payload)
       :set-message (set-message! payload)
       :guess-letter (guess-letter-msg payload)

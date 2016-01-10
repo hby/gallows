@@ -142,3 +142,7 @@
 (defroutes websocket-routes
            (GET "/ws" request (ws-handler request)))
 
+(defn periodically [ms f]
+  (future (while true (do (Thread/sleep ms) (f)))))
+
+(periodically (* 1000 30) #(notify-all-clients (->message :ping {})))
