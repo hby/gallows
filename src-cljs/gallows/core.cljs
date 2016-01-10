@@ -137,7 +137,11 @@
   ([n] (repeat n (gstring/unescapeEntities "&nbsp;"))))
 
 (defn hangman [game]
-  [:div {:style {:font-size "30pt"}}
+  [:div {:style {:font-size "30pt"
+                 :border-color "ccc"
+                 :border-style :none
+                 :border-bottom-style :double
+                 :padding-bottom "15px"}}
    (doall
      (map-indexed (fn [i l]
                     (if (some (game :correct) l)
@@ -146,8 +150,11 @@
                   (-> game :hangman)))])
 
 (defn game-letters [game]
-  [:div {:style {:font-size 15}}
-   [:span "Guess: "]
+  [:div {:style {:font-size "20pt"
+                 :padding-top "15px"
+                 :padding-bottom "15px"}}
+   [:span {:style {:font-size "12pt"}} "Click a letter to guess:"]
+   [:br]
    (doall
      (map-indexed (fn [i l]
                     (if (some (game :guessed) l)
