@@ -123,21 +123,21 @@
    @message])
 
 (defn player-name-field []
-    (let [value (atom nil)
-          done-fn #(do
-                    (update-name-ws @value)
-                    (reset! value nil))]
-      (fn []
-        [:input.form-control
-         {:type :text
-          :placeholder "who are you?"
-          :value @value
-          :on-change #(let [tv (-> % .-target .-value)]
-                       (if (< (count tv) 11)
-                         (reset! value tv)))
-          :on-key-down #(when (or (= (.-keyCode %) 13)
-                                  (= (.-keyCode %) 9))
-                         (done-fn))}])))
+  (let [value (atom nil)
+        done-fn #(do
+                  (update-name-ws @value)
+                  (reset! value nil))]
+    (fn []
+      [:input.form-control
+       {:type :text
+        :placeholder "who are you?"
+        :value @value
+        :on-change #(let [tv (-> % .-target .-value)]
+                     (if (< (count tv) 11)
+                       (reset! value tv)))
+        :on-key-down #(when (or (= (.-keyCode %) 13)
+                                (= (.-keyCode %) 9))
+                       (done-fn))}])))
 
 (defn player-name
   []
@@ -295,12 +295,6 @@
   (swap! reports conj new-report))
 
 ;;
-;; :guess-letter
-;;
-(defn guess-letter-msg [{:keys [letter]}]
-  )
-
-;;
 ;; :ping
 ;;
 (defn ws-ping [_]
@@ -310,15 +304,12 @@
 
 (defn receive-ws-message
   [{:keys [type payload]}]
-  (do
-    (println "got ws message type:" type "payload:" payload)
-    (case type
-      :ping (ws-ping payload)
-      :game-report (set-reports! payload)
-      :set-players (set-players! payload)
-      :set-message (set-message! payload)
-      :guess-letter (guess-letter-msg payload)
-      )))
+  (case type
+    :ping (ws-ping payload)
+    :game-report (set-reports! payload)
+    :set-players (set-players! payload)
+    :set-message (set-message! payload)
+    ))
 
 (defn mount-components []
   (reagent/render-component [#'home-page] (.getElementById js/document "app")))

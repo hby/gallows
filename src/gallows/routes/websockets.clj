@@ -56,7 +56,7 @@
 
 (defn notify-all-clients [msg]
   (do
-    ;(log/info "notifying all clients:" msg)
+    (log/debug "notifying all clients:" msg)
     (apply notify-clients msg (keys @channels))))
 
 (defn ->message
@@ -69,11 +69,10 @@
   []
   (dorun
     (let [channels @channels]
-      ;(log/info channels)
       (for [channel (keys channels)
             :let [players (mapv (fn [m] (set/rename-keys (update-in m [:words] #(last %)) {:words :word})) (vals (dissoc channels channel)))]]
         (do
-          (log/info "updating players:" players "to" channel)
+          (log/debug "updating players:" players "to" channel)
           (notify-clients (->message :set-players {:players players}) channel))))))
 
 
@@ -106,15 +105,10 @@
         word (-> player :word)
         report-channel (id->channel (-> player :id))
         msg (str worler " " (name outcome) " on your word '" word "'")]
-    (when report-channel
-      (notify-clients (->message :game-report {:message msg}) report-channel))))
-
-;;
-;; :guess-letter
-;;
-(defn guess-letter [{:keys [letter]}]
-  (log/info "guessed: " letter)
-  )
+    (do
+      (log/info msg)
+      (when report-channel
+        (notify-clients (->message :game-report {:message msg}) report-channel)))))
 
 
 ;;; Web Socket connect, disconnect, and raw handler
@@ -123,12 +117,11 @@
   "pass payload to function determined by (msg :type)"
   [channel {:keys [type payload] :as msg}]
   (do
-    (log/info "handling ws message:" msg "channel:" channel)
+    (log/debug "handling ws message:" msg "channel:" channel)
     (case type
       :update-name (update-name channel payload)
       :add-word (add-word channel payload)
       :report-game (report-game channel payload)
-      :guess-letter (guess-letter payload)
       )))
 
 (defn periodically [ms f]
@@ -156,7 +149,7 @@
                 (connect! channel)
                 (on-close channel (partial disconnect! channel))
                 (on-receive channel #(do
-                                      (log/info "channel:" channel)
+                                      (log/debug "channel:" channel)
                                       (handle-ws-message channel (transit-read %))))))
 
 (defroutes websocket-routes
