@@ -98,6 +98,18 @@
     (update-all-client-players)))
 
 ;;
+;; :report-game
+;;
+(defn report-game
+  [channel {:keys [outcome player]}]
+  (let [worler (-> (@channels channel) :name)
+        word (-> player :word)
+        report-channel (id->channel (-> player :id))
+        msg (str worler " " (name outcome) " on your word '" word "'")]
+    (when report-channel
+      (notify-clients (->message :game-report {:message msg}) report-channel))))
+
+;;
 ;; :guess-letter
 ;;
 (defn guess-letter [{:keys [letter]}]
@@ -115,6 +127,7 @@
     (case type
       :update-name (update-name channel payload)
       :add-word (add-word channel payload)
+      :report-game (report-game channel payload)
       :guess-letter (guess-letter payload)
       )))
 

@@ -29,6 +29,9 @@
 ;; otherwise nil.
 (defonce game (atom nil))
 
+;; Array of strings that are the win/lose reports on this players words
+(defonce reports (atom []))
+
 
 (defn send-ws-message
   [type payload]
@@ -38,8 +41,9 @@
 
 (defn update-name-ws
   [n]
-  (reset! player n)
-  (send-ws-message :update-name {:name n}))
+  (let [name (if (empty? n) "Anonymous" n)]
+    (reset! player name)
+    (send-ws-message :update-name {:name name})))
 
 (defn add-word-ws
   [w]
@@ -71,7 +75,18 @@
         (-> game :correct count))
       6))
 
+(defn game-report-payload
+  [game]
+  {:outcome (if (win? game) :won :lost)
+   :player (game :player)})
+
+(defn report-game
+  [game]
+  (if (or (win? game) (lose? game))
+    (send-ws-message :report-game (game-report-payload game))))
+
 (defn guess-letter
+  "process the guessed letter l"
   [l]
   (letfn [(updater [g l]
             (-> g
@@ -79,12 +94,7 @@
                 (update-in [:correct] #(if (some (set (g :hangman)) l)
                                         (conj % l)
                                         %))))]
-    (swap! game updater l)))
-
-(defn player-name
-  []
-  [:div [:strong "You are "]
-   [:span {:style {:color "green"}} @player]])
+    (report-game (swap! game updater l))))
 
 (defn current-word
   []
@@ -101,7 +111,9 @@
     (player :name)))
 
 (defn player-list []
-  [:ul
+  [:ul {:style {:list-style-type "none"
+                :padding-left "3"
+                :margin "0"}}
    (for [[i _ :as ip] (map-indexed vector @players)]
      ^{:key i}
      [:li (player-li ip)])])
@@ -111,18 +123,29 @@
    @message])
 
 (defn player-name-field []
-  (let [value (atom nil)]
-    (fn []
-      [:input.form-control
-       {:type :text
-        :placeholder "who are you?"
-        :value @value
-        :on-change #(let [tv (-> % .-target .-value)]
-                     (if (< (count tv) 11)
-                       (reset! value tv)))
-        :on-key-down #(when (= (.-keyCode %) 13)
-                       (update-name-ws @value)
-                       (reset! value nil))}])))
+    (let [value (atom nil)
+          done-fn #(do
+                    (update-name-ws @value)
+                    (reset! value nil))]
+      (fn []
+        [:input.form-control
+         {:type :text
+          :placeholder "who are you?"
+          :value @value
+          :on-change #(let [tv (-> % .-target .-value)]
+                       (if (< (count tv) 11)
+                         (reset! value tv)))
+          :on-key-down #(when (or (= (.-keyCode %) 13)
+                                  (= (.-keyCode %) 9))
+                         (done-fn))}])))
+
+(defn player-name
+  []
+  (if (empty? @player)
+    [player-name-field]
+    [:div
+     [:span "Hello, "]
+     [:span @player]]))
 
 (defn word-field []
   (let [value (atom nil)]
@@ -159,7 +182,9 @@
   [:div {:style {:font-size "20pt"
                  :padding-top "15px"
                  :padding-bottom "15px"}}
-   [:span {:style {:font-size "12pt"}} "Click a letter to guess:"]
+   [:span {:style {:font-size "12pt"
+                   :color "grey"}}
+    "Click a letter to guess:"]
    [:br]
    (doall
      (map-indexed (fn [i l]
@@ -182,8 +207,8 @@
   (if @game
     (let [g @game]
       [:div.game
-       [:h4 "Playing a word from "
-        [:span {:style {:color "blue"}} (-> g :player :name)]]
+       [:h4 {:style {:color "grey"}} "Playing a word from "
+        [:span {:style {:color "black"}} (-> g :player :name)]]
        [hangman g]
        [game-letters g]
        [guessed-letters g]
@@ -201,7 +226,24 @@
                     [:span
                      {:style {:color "red"}}
                      (-> g :player :word)]])])
-    [:span "Pick a name to play their word"]))
+    [:span "Select a player name to play their word"]))
+
+(defn reports-list
+  [results]
+  [:ul {:style {:list-style-type "none"
+                :padding-left "3"
+                :margin "0"}}
+   (for [[i r] (map-indexed vector results)]
+     ^{:key i} [:li r])])
+
+(defn reports-view []
+  (if (not (empty? @reports))
+    [:div.results {:style {:height "250px"
+                           :overflow-y "scroll"
+                           :border-style "solid"
+                           :border-width "1px"
+                           :border-color "ddd"}}
+     [reports-list @reports]]))
 
 (defn home-page []
   [:div.container
@@ -211,17 +253,23 @@
      [message-view]
      [:h4 "Enter The Gallows"]
      [:div
-      [player-name-field]
       [player-name]
       [:br]
       [word-field]
       [current-word]]
      [:br]
-     [:div [:strong "They are "]
-      [player-list]]]
+     [:div
+      [:span {:style {:font-weight "bold"}} "Other players"]
+      [:div {:style {:height "300px"
+                     :overflow-y "scroll"
+                     :border-style "solid"
+                     :border-width "1px"
+                     :border-color "ddd"}}
+       [player-list]]]]
 
     [:div.col-sm-9
-     [game-view]]]
+     [game-view]
+     [reports-view]]]
    ]
   )
 
@@ -239,6 +287,12 @@
 ;;
 (defn set-message! [{new-message :message}]
   (reset! message new-message))
+
+;;
+;; :game-report
+;;
+(defn set-reports! [{new-report :message}]
+  (swap! reports conj new-report))
 
 ;;
 ;; :guess-letter
@@ -260,6 +314,7 @@
     (println "got ws message type:" type "payload:" payload)
     (case type
       :ping (ws-ping payload)
+      :game-report (set-reports! payload)
       :set-players (set-players! payload)
       :set-message (set-message! payload)
       :guess-letter (guess-letter-msg payload)
