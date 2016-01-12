@@ -84,8 +84,13 @@
                                  [mvxcvi/puget "1.0.0"]]
                   :plugins [[lein-figwheel "0.5.0-2"]
                             [lein-codox "0.9.1"]]
-                  :codox {:language :clojure
-                          :source-paths ["src" "src-cljs"]}
+                  :codox {
+                          :language :clojure
+                          ;:language :clojurescript
+                          :source-paths ["src" "src-cljs"]
+                          :namespaces [gallows.game gallows.routes.transit gallows.routes.websockets] ;clj
+                          ;:namespaces [gallows.core gallows.websockets gallows.state gallows.game gallows.view] ;cljs
+                          }
                    :cljsbuild
                    {:builds
                     {:app

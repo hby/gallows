@@ -1,19 +1,23 @@
 # gallows
 
-FIXME
+A distributed hangman game.
 
-## Prerequisites
+## Purpose
 
-You will need [Leiningen][1] 2.0 or above installed.
-
-[1]: https://github.com/technomancy/leiningen
+An experiment in building a complete app in Clojure and ClojureScript with websockets for real-time
+ UI updates and some amount of non-trivial interaction.
 
 ## Running
 
-To start a web server for the application, run:
+See Luminus ...
 
-    lein run
+
+## Libraries Used
+
+- [Leiningen](https://github.com/technomancy/leiningen)
+- [Luminus](http://www.luminusweb.net)
+
 
 ## License
 
-Copyright © 2016 FIXME
+Copyright © 2016 Bret Young
