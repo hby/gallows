@@ -3,33 +3,43 @@
             [gallows.websockets :as ws]
             [clojure.string :as s]
             [goog.string :as gstring]
-    ;[reagent.session :as session]
-    ;[secretary.core :as secretary :include-macros true]
-    ;[goog.events :as events]
-    ;[goog.history.EventType :as HistoryEventType]
-    ;[markdown.core :refer [md->html]]
-    ;[ajax.core :refer [GET POST]]
+            [reagent.session :as session]
+            [secretary.core :as secretary :include-macros true]
+            [goog.events :as events]
+            [goog.history.EventType :as HistoryEventType]
+            [ajax.core :refer [GET POST]]
             )
-  ;(:import goog.History)
-  )
+  (:import goog.History))
 
+
+;;; State is held in Reagent atoms
+
+; One off messages
 (defonce message (atom ""))
 
+; The player's name
 (defonce player (atom ""))
 
-;; [{ :name ""   ; player name
-;;    :id   ""   ; player id
-;;    :word "" } ; word to guess
-;;  ...]
-(defonce players (atom []))
-
+; The player's word
 (defonce word (atom ""))
 
-;; If there is a game then this has game data,
-;; otherwise nil.
+; All of the other player data
+; [{ :name ""   ; player name
+;    :id   ""   ; player id
+;    :word "" } ; word to guess
+;  ...]
+(defonce players (atom []))
+
+; If there is a game then this has game state,
+; otherwise nil.
+; {:player _   ; player data that has the word we're playing
+;  :hangman _  ; word being played as a vector of single char strings
+;  :letters _  ; letters to choose from, vector of single char strings
+;  :guessed _  ; set of strings containing the guessed letters
+;  :correct _} ; set of strings containing the correct guesses
 (defonce game (atom nil))
 
-;; Array of strings that are the win/lose reports on this players words
+;; Vector of strings that are the win/lose reports on this players words
 (defonce reports (atom []))
 
 
@@ -279,36 +289,37 @@
 ;;
 ;; :set-players
 ;;
-(defn set-players! [{new-players :players}]
+(defn set-players [{new-players :players}]
   (reset! players (vec (sort-by :name new-players))))
 
 ;;
 ;; :set-message
 ;;
-(defn set-message! [{new-message :message}]
+(defn set-message [{new-message :message}]
   (reset! message new-message))
 
 ;;
 ;; :game-report
 ;;
-(defn set-reports! [{new-report :message}]
+(defn game-report [{new-report :message}]
   (swap! reports conj new-report))
 
 ;;
 ;; :ping
 ;;
 (defn ws-ping [_]
+  ; do nothing
   )
 
-;;; mount components and set up ws connection ;;;
+;;; mount components and set up ws connection
 
 (defn receive-ws-message
   [{:keys [type payload]}]
   (case type
     :ping (ws-ping payload)
-    :game-report (set-reports! payload)
-    :set-players (set-players! payload)
-    :set-message (set-message! payload)
+    :game-report (game-report payload)
+    :set-players (set-players payload)
+    :set-message (set-message payload)
     ))
 
 (defn mount-components []
