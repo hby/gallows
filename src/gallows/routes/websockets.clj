@@ -1,156 +1,94 @@
 (ns gallows.routes.websockets
-  (:require [compojure.core :refer [GET defroutes]]
-            [org.httpkit.server
-             :refer [send! with-channel on-close on-receive]]
-            [cognitect.transit :as t]
-            [clojure.tools.logging :as log]
-            [clojure.set :as set])
-  (:import (java.io ByteArrayInputStream ByteArrayOutputStream)))
-
-;; channel -> {:name  ""
-;;             :id    ""
-;;             :words []}
-(defonce channels (atom {}))
-
-(defonce id (atom 0N))
-(defn next-id []
-  (str (swap! id inc)))
-
-(defn id->channel
-  "returns the channel key in the channels atom which
-  has the value of qid for the :id value of the map under that key."
-  [qid]
-  {:pre [(not (nil? qid))]}
-  (let [channels @channels]
-    (some (fn [[ck {:keys [id]}]] (if (= qid id) ck)) channels)))
-
-(defn channel-data
-  [channel]
-  (@channels channel))
-
-(defn transit-read
-  "return Cloure data given transit data"
-  [tmsg]
-  (let [in (ByteArrayInputStream. (.getBytes tmsg))
-        reader (t/reader in :json)
-        msg (t/read reader)]
-    msg))
-
-(defn transit-write
-  "return transit data given Clojure data"
-  [msg]
-  (let [out (ByteArrayOutputStream. 4096)
-        writer (t/writer out :json)
-        _ (t/write writer msg)]
-    (.toString out)))
-
-(defn notify-clients
-  "msg is encoded as transit data and sent to channels
-   channels - web socket channels
-   msg     - Clojure data to send"
-  [msg & channels]
-  (let [tmsg (transit-write msg)]
-    (doseq [channel channels]
-      (send! channel tmsg))))
+  (:require [clojure.tools.logging :as log]
+            [compojure.core :refer [GET defroutes]]
+            [org.httpkit.server :refer [with-channel on-close on-receive]]
+            [gallows.routes.transit :refer :all]
+            [gallows.game :as g]))
 
 
-(defn notify-all-clients [msg]
-  (do
-    (log/debug "notifying all clients:" msg)
-    (apply notify-clients msg (keys @channels))))
+;;; Low level websocket connect, disconnect, and message handling
 
-(defn ->message
-  "convenince web socket message creator"
-  [type payload]
-  {:type type
-   :payload payload})
-
-(defn update-all-client-players
-  []
-  (dorun
-    (let [channels @channels]
-      (for [channel (keys channels)
-            :let [players (mapv (fn [m] (set/rename-keys (update-in m [:words] #(last %)) {:words :word})) (vals (dissoc channels channel)))]]
-        (do
-          (log/debug "updating players:" players "to" channel)
-          (notify-clients (->message :set-players {:players players}) channel))))))
-
-
-;;; ws messages ;;;
-;;
-;; :update-name
-;;
-(defn update-name
-  [channel {:keys [name]}]
-  (do
-    (log/info "updating channel:" channel "name to:" name)
-    (swap! channels assoc-in [channel :name] name)
-    (update-all-client-players)))
-
-;;
-;; :add-word
-;;
-(defn add-word
-  [channel {:keys [word]}]
-  (do
-    (swap! channels update-in [channel :words] conj word)
-    (update-all-client-players)))
-
-;;
-;; :report-game
-;;
-(defn report-game
-  [channel {:keys [outcome player]}]
-  (let [worler (-> (@channels channel) :name)
-        word (-> player :word)
-        report-channel (id->channel (-> player :id))
-        msg (str worler " " (name outcome) " on your word '" word "'")]
-    (do
-      (log/info msg)
-      (when report-channel
-        (notify-clients (->message :game-report {:message msg}) report-channel)))))
-
-
-;;; Web Socket connect, disconnect, and raw handler
-
-(defn handle-ws-message
-  "pass payload to function determined by (msg :type)"
-  [channel {:keys [type payload] :as msg}]
-  (do
-    (log/debug "handling ws message:" msg "channel:" channel)
-    (case type
-      :update-name (update-name channel payload)
-      :add-word (add-word channel payload)
-      :report-game (report-game channel payload)
-      )))
-
-(defn periodically [ms f]
-  (future (while true (do (Thread/sleep ms) (f)))))
+; Holds the future that wraps the periodic pinger
 (defonce pinger (atom nil))
 
-(defn connect! [channel]
-  (log/info "channel open:" channel)
-  (swap! channels assoc channel {:name "Anonymous"
-                                 :id (next-id)
-                                 :words []})
-  (notify-clients (->message :set-message {:message "Welcome!"}) channel)
-  (update-all-client-players)
+
+(defn- periodically
+  "Repeatedly invokes f in another thread every ms milliseconds
+   Uses a future, that is returned, for the thread behavior and
+   allow for cancellation.
+
+   f  - funciton to invoke
+   ms - period in milliseconds"
+  [ms f]
+  (future (while true (do (Thread/sleep ms) (f)))))
+
+
+(defn- setup-pinger
+  "Periodically sends an empty message on all channels to keep
+   them open on deployments that require traffic to stay alive.
+
+   secs - seconds between pings"
+  [secs]
   (swap! pinger #(if (nil? %)
-                  (periodically (* 1000 30) (fn [] (notify-all-clients (->message :ping {}))))
+                  (periodically (* 1000 secs)
+                                (fn [] (g/send-to-all-channels (g/->message :ping {}))))
                   %)))
 
-(defn disconnect! [channel status]
-  (log/info "channel disconnected:" channel "status:" status)
-  (swap! channels dissoc channel)
-  (update-all-client-players))
 
-(defn ws-handler [request]
+(defn- ws-connect
+  "The ws connect handler. This will be called with a new
+   channel when a client first connects.
+   Tells game to add the player channel.
+
+   channel - websocket channel"
+  [channel]
+  (log/info "channel connect:" channel)
+  ; set up pinger on first connect, this is idempotent
+  (setup-pinger 30)
+
+  ; game logic
+  (g/add-player channel))
+
+
+(defn- ws-disconnect
+  "The ws disconnect handler. This will be called when a
+   channel disconnects.
+   Tells game to remove player channel.
+
+   channel   - websocket channel
+   status    - status of the channel"
+  [channel status]
+  (log/info "channel disconnect:" channel "status:" status)
+
+  ; game logic
+  (g/remove-player channel))
+
+
+(defn- ws-receive
+  "The ws receive handler. This will be called when a
+   client message comes in on the channel.
+   Decodes to clojure data and forwards to game message handler.
+
+   channel - websocket channel
+   tmsg    - transit message received"
+  [channel tmsg]
+  (log/debug "channel recv:" channel)
+
+  ; game logic
+  (g/handle-message channel (transit-read tmsg)))
+
+
+(defn- ws-handler
+  "Creates a channel set up for messaging with
+   lifecycle functions attached.
+
+   request - the websocket request"
+  [request]
   (with-channel request channel
-                (connect! channel)
-                (on-close channel (partial disconnect! channel))
-                (on-receive channel #(do
-                                      (log/debug "channel:" channel)
-                                      (handle-ws-message channel (transit-read %))))))
+                (ws-connect channel)
+                (on-close channel (partial ws-disconnect channel))
+                (on-receive channel (partial ws-receive channel))))
+
 
 (defroutes websocket-routes
            (GET "/ws" request (ws-handler request)))
