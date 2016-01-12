@@ -19,16 +19,11 @@
     (jdbc/db-set-rollback-only! t-conn)
     (is (= 1 (db/create-user!
                {:id         "1"
-                :first_name "Sam"
-                :last_name  "Smith"
+                :name       "Sam"
                 :email      "sam.smith@example.com"
                 :pass       "pass"})))
     (is (= [{:id         "1"
-             :first_name "Sam"
-             :last_name  "Smith"
+             :name        "Sam"
              :email      "sam.smith@example.com"
-             :pass       "pass"
-             :admin      nil
-             :last_login nil
-             :is_active  nil}]
+             :pass       "pass"}]
            (db/get-user {:id "1"})))))
