@@ -159,7 +159,7 @@
    Dispatch payload according to (msg :type).
 
    channel - websocket channel
-   msg     - message payload from client"
+   msg     - message type and payload from client"
   [channel {:keys [type payload] :as msg}]
   (do
     (log/debug "handling ws message:" msg)

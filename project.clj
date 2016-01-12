@@ -82,7 +82,10 @@
                                  [com.cemerick/piggieback "0.2.2-SNAPSHOT"]
                                  [lein-figwheel "0.5.0-2"]
                                  [mvxcvi/puget "1.0.0"]]
-                  :plugins [[lein-figwheel "0.5.0-2"]]
+                  :plugins [[lein-figwheel "0.5.0-2"]
+                            [lein-codox "0.9.1"]]
+                  :codox {:language :clojure
+                          :source-paths ["src" "src-cljs"]}
                    :cljsbuild
                    {:builds
                     {:app
