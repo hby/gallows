@@ -7,6 +7,9 @@
 ; One off messages
 (defonce message (atom ""))
 
+; Will show message as overlay if non-nil
+(defonce overlay (atom nil))
+
 ; The player's state is a name
 (defonce player (atom ""))
 

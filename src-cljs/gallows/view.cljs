@@ -215,6 +215,12 @@
               player-list, game-view, reports-view"
   []
   [:div.container
+
+   (if @gs/overlay
+     [:div.row
+      [:div.col-md-12
+       [:h4 {:style {:color "red"}} @gs/overlay]]])
+
    [:div.row
 
     [:div.col-sm-3

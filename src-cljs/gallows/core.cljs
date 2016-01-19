@@ -23,6 +23,6 @@
   "Will be called when page loads."
   []
   (ws/make-websocket! (str "ws://" (.-host js/location) "/ws")
-                      ; game logic will handle ws messages from server
-                      g/handle-message)
+                      g/handle-message
+                      g/handle-close)
   (mount-components))

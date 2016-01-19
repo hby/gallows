@@ -160,3 +160,10 @@
     :set-players (set-players payload)
     :set-message (set-message payload)
     ))
+
+(defn handle-close
+  "Handle ws close
+
+   channel - websocket channel"
+  []
+  (reset! gs/overlay "The connection to the server has disconnected. Please reload your browser."))

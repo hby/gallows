@@ -34,11 +34,15 @@
    url             - server ws url
    receive-handler - function called when messages are received
                      after transit decoding"
-  [url receive-handler]
+  [url receive-handler close-handler]
   (println "attempting to connect websocket")
   (if-let [chan (js/WebSocket. url)]
     (do
       (set! (.-onmessage chan) (receive-transit-msg! receive-handler))
+      (set! (.-onclose chan) #(do
+                               (println "ws closed - code:" (.-code %) "reason:" (.-reason %) "wasClean:" (.-wasClean %))
+                               (reset! ws-chan nil)
+                               (close-handler)))
       (reset! ws-chan chan)
       (println "Websocket connection established with: " url))
     (throw (js/Error. "Websocket connection failed!"))))
