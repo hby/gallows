@@ -1,0 +1,6 @@
+{
+  "name": "Hangman in Clojure",
+  "description": "Hangman in Clojure using ClojureScript and Luminus.",
+  "image": "heroku/clojure",
+  "addons": []
+}
