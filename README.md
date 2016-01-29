@@ -2,6 +2,8 @@
 
 A distributed hangman game.
 
+[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.png)](https://heroku.com/deploy)
+
 ## Purpose
 
 An experiment in building a complete app in Clojure and ClojureScript with websockets for real-time
